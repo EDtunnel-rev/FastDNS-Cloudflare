@@ -4,19 +4,33 @@
   "description": "A complex DNS server running on Cloudflare Workers, supporting A, AAAA, CNAME, DNAME, MX, and TXT records.",
   "main": "worker_obfuscates.js",
   "scripts": {
-    "start": "wrangler dev",
-    "deploy": "wrangler publish",
-    "build": "echo 'No build step needed for this project'"
+    "start": "wrangler dev",          // 本地开发模式，启动 Cloudflare Workers 开发服务器
+    "deploy": "wrangler publish",     // 部署 Cloudflare Worker 到生产环境
+    "build": "echo 'No build step necessary'", // 构建脚本（这里是一个占位符）
+    "lint": "eslint .",               // 使用 ESLint 进行代码格式检查
+    "prettify": "prettier --write .", // 使用 Prettier 格式化代码
+    "test": "jest"                    // 运行单元测试（假设你使用 Jest）
   },
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.0.0",             // Cloudflare Workers CLI 工具
+    "eslint": "^8.31.0",              // 用于代码静态检查
+    "prettier": "^2.8.0",             // 用于代码格式化
+    "jest": "^29.3.1"                 // 用于编写和运行单元测试
   },
   "dependencies": {
-    "dotenv": "^16.0.3"  // Assuming you might use dotenv for environment variables
+    "dotenv": "^16.0.3"               // 用于加载环境变量
   },
   "engines": {
-    "node": ">=16.0.0"
-  }
+    "node": ">=16.0.0"                // 指定 Node.js 版本要求
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/OpenDNS-Cloudflare.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/OpenDNS-Cloudflare/issues"
+  },
+  "homepage": "https://github.com/your-username/OpenDNS-Cloudflare#readme"
 }
