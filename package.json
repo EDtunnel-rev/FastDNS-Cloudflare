@@ -1,14 +1,22 @@
 {
   "name": "OpenDNS-Cloudflare",
   "version": "1.0.0",
-  "description": "A Cloudflare Workers project that implements a DNS server supporting A, AAAA, CNAME, DNAME, MX, TXT records and recursive querying using DoH.",
-  "main": "index.js",
+  "description": "A complex DNS server running on Cloudflare Workers, supporting A, AAAA, CNAME, DNAME, MX, and TXT records.",
+  "main": "worker_obfuscates.js",
   "scripts": {
     "start": "wrangler dev",
-    "deploy": "wrangler publish"
+    "deploy": "wrangler publish",
+    "build": "echo 'No build step needed for this project'"
   },
-  "dependencies": {},
-  "devDependencies": {},
-  "author": "EDtunnel-rev",
-  "license": "MIT"
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3"  // Assuming you might use dotenv for environment variables
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
 }
