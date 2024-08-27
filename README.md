@@ -205,3 +205,7 @@ When contributing, please ensure your code adheres to the existing style and str
 ## License
 
 This project is licensed under the MIT License. You are free to use, modify, and distribute this software under the terms of the license. See the [LICENSE](LICENSE) file for more details.
+
+---
+
+This README provides an in-depth guide to understanding, deploying, and customizing the Cloudflare Workers DNS Server. Whether you're looking to use it as-is or extend its functionality for more advanced DNS tasks, this documentation should serve as a comprehensive resource.
