@@ -1,0 +1,32 @@
+name: Sync Repository
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  # 每天凌晨自动同步
+  workflow_dispatch:     # 手动触发
+
+jobs:
+  sync:
+    name: Sync Repositories
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source repository
+      uses: actions/checkout@v3
+      with:
+        repository: your-source-repo/your-repo-name  # 替换为源仓库的名称
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: main  # 源仓库的分支
+
+    - name: Set up Git
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+
+    - name: Add destination repository as a remote
+      run: git remote add destination https://github.com/EDtunnel-rev/OpenDNS-Cloudflare.git  # 替换为目标仓库的URL
+
+    - name: Push changes to destination repository
+      run: |
+        git push destination main --force  # 强制推送到目标仓库的main分支
+
