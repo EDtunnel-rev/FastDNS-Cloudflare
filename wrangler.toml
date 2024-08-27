@@ -1,0 +1,28 @@
+# The name of your Cloudflare Worker project
+name = "cloudflare-workers-dns-server"
+
+# The entry point for your Worker script
+main = "index.js"
+
+# The compatibility date ensures your Worker runs in an environment compatible with this date
+compatibility_date = "2024-08-27"
+
+# Define your route(s) where the worker will be available
+[[routes]]
+pattern = "yourdomain.com/*"
+custom_domain = true
+
+# Environment variables, which can include things like API tokens, or configuration values
+[vars]
+# A UUID list example, use your specific UUIDs if needed
+UUID = "1b6c1745-992e-4aac-8685-266c090e50ea,89b64978-6244-4bf3-bf64-67ade4ce5c8f,d342d11e-d424-4583-b36e-524ab1f0afa4,49379c4f-2e80-4c17-bff6-ef13bd1af934"
+
+# Define any KV namespaces your worker might use
+[[kv_namespaces]]
+binding = "DNS_CACHE"
+id = "your-kv-namespace-id"
+
+# Uncomment and customize these lines if you want to deploy your worker to a specific environment
+#[env.production]
+#route = "yourdomain.com/*"
+#zone_id = "your-zone-id"
