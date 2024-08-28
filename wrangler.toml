@@ -2,7 +2,7 @@
 name = "cloudflare-workers-dns-server"
 
 # The entry point for your Worker script
-main = "index.js"
+main = "_worker.js"
 
 # The compatibility date ensures your Worker runs in an environment compatible with this date
 compatibility_date = "2024-08-27"
