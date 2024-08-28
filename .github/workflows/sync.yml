@@ -14,7 +14,7 @@ jobs:
     - name: Checkout source repository
       uses: actions/checkout@v3
       with:
-        repository: your-source-repo/your-repo-name  # 替换为源仓库的名称
+        repository: EDtunnel-rev/OpenDNS-Cloudflare  # 替换为源仓库的名称
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: main  # 源仓库的分支
 
