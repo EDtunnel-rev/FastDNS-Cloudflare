@@ -2,14 +2,14 @@
 name = "cloudflare-workers-dns-server"
 
 # The entry point for your Worker script
-main = "_worker.js"
+main_module = "_worker.js"
 
 # The compatibility date ensures your Worker runs in an environment compatible with this date
 compatibility_date = "2024-08-27"
 
 # Define your route(s) where the worker will be available
 [[routes]]
-pattern = "yourdomain.com/*"
+pattern = "yourdomain.com/*"  # 请替换为实际使用的域名
 custom_domain = true
 
 # Environment variables, which can include things like API tokens, or configuration values
@@ -20,7 +20,10 @@ UUID = "1b6c1745-992e-4aac-8685-266c090e50ea,89b64978-6244-4bf3-bf64-67ade4ce5c8
 # Define any KV namespaces your worker might use
 [[kv_namespaces]]
 binding = "DNS_CACHE"
-id = "your-kv-namespace-id"
+id = "your-kv-namespace-id"  # 确保这是有效的 KV 命名空间 ID
+
+# Add your Cloudflare account ID
+account_id = "your-account-id"  # 请替换为你的 Cloudflare 账户 ID
 
 # Uncomment and customize these lines if you want to deploy your worker to a specific environment
 #[env.production]
