@@ -1,213 +1,283 @@
-# OpenDNS-Cloudflare
+# FastDNS-Cloudflare,一个免费的高级DNS解析服务
 
 ## 概述
 
-本项目是一个使用 Cloudflare Workers 实现的全功能 DNS 服务器。它支持递归 DNS 解析，并处理多种 DNS 记录类型，包括 A、AAAA、CNAME、DNAME、MX 和 TXT 记录。该服务器通过 HTTPS 上的 DNS（DoH，DNS over HTTPS）进行操作，确保所有 DNS 查询和响应都是加密的，增强了安全性和隐私性。
+本项目提供了一个高级DNS解析服务，专为在Cloudflare Workers上运行而设计。该服务能够从多个DNS提供商（Cloudflare, Google DNS, OpenDNS）查询DNS记录，通过共识机制选择最可靠的结果，并使用LRU缓存策略缓存结果。此外，服务还包含请求速率限制、详细的日志记录和统计收集，无需依赖KV或Durable Objects等持久存储。
 
-### 目录
+## 功能特性
 
-- [概述](#概述)
-- [功能](#功能)
-- [工作原理](#工作原理)
-  - [递归 DNS 解析](#递归-dns-解析)
-  - [支持的 DNS 记录类型](#支持的-dns-记录类型)
-  - [DNS 查询构建](#dns-查询构建)
-  - [DNS 响应解析](#dns-响应解析)
-- [安装](#安装)
-  - [前提条件](#前提条件)
-  - [设置](#设置)
-- [使用](#使用)
-  - [基本使用](#基本使用)
-  - [查询不同的记录类型](#查询不同的记录类型)
-- [自定义](#自定义)
-  - [增加对更多 DNS 记录类型的支持](#增加对更多-dns-记录类型的支持)
-  - [修改递归解析逻辑](#修改递归解析逻辑)
-- [限制](#限制)
-- [贡献](#贡献)
-- [许可证](#许可证)
+### 1. 多提供商DNS解析
+该服务可以同时查询以下三大DNS提供商：
+- **Cloudflare DNS** (1.1.1.1)
+- **Google DNS** (8.8.8.8)
+- **OpenDNS** (208.67.222.222)
 
-## 功能
+服务会立即返回最快的响应结果以确保低延迟，然后在1秒内等待另外两个响应，并检查结果的一致性。如果发现差异，服务会重新评估并重新查询，最终返回最可靠的结果。
 
-- **完整的 DNS 解析**：服务器执行递归 DNS 解析，从根服务器开始，逐级查询 DNS 层级结构以解析域名。
-- **支持多种记录类型**：处理多种 DNS 记录类型，包括 A、AAAA、CNAME、DNAME、MX 和 TXT。
-- **DoH 集成**：所有 DNS 查询都通过 HTTPS 使用 DNS over HTTPS（DoH）传输，以确保安全和私密的通信。
-- **可定制和可扩展**：代码库设计易于扩展，支持更多的 DNS 记录类型，并可根据具体需求进行定制。
-- **轻量快速**：部署在 Cloudflare Workers 上，服务器性能高，延迟低，且具有全球可用性。
+### 2. LRU缓存
+实现了一个自定义的内存中LRU缓存，用于存储DNS查询结果。缓存默认最多保存1000个条目，确保最频繁访问的数据能够快速获取，避免重复查询DNS提供商。LRU机制会自动移除最少访问的条目，为新的条目腾出空间。
 
-## 工作原理
+### 3. 请求速率限制
+为防止滥用，服务包含了一个请求速率限制器，每个IP地址每分钟最多可发送60个请求。超出该限制的请求将收到HTTP 429状态（“请求过多”）。
 
-### 递归 DNS 解析
+### 4. IP过滤
+服务可以基于客户端的IP地址限制访问。默认情况下，它只允许特定的IP范围与服务进行交互。这一设置可以轻松定制以适应不同的安全需求。
 
-DNS 服务器通过查询一个根 DNS 服务器来开始域名解析过程。如果根服务器不能直接解析域名（通常它不能），它会提供一个更具体的 DNS 服务器的地址，例如负责查询域的顶级域名（TLD）的服务器。
+### 5. 详细的日志记录与统计
+每个请求都会记录详细信息，包括客户端IP地址、查询的DNS名称、记录类型以及返回的结果。此外，还收集了每个DNS提供商的查询统计信息，例如查询次数、成功率、失败率和平均响应时间。这些统计信息可以通过专用的API端点进行访问。
 
-然后，服务器查询 TLD 服务器，TLD 服务器可能会解析查询，或者将服务器指向可以解析的权威 DNS 服务器。这个过程递归进行，直到 DNS 服务器找到请求的记录或确定该域名不存在。
+### 6. 可配置的TTL
+缓存条目的生存时间（TTL）是可配置的，用户可以控制DNS结果在缓存中保存的时间。默认TTL设置为3600秒（1小时）。
 
-### 支持的 DNS 记录类型
+### 7. 错误处理
+服务具备健全的错误处理机制。如果某个DNS提供商未能响应或返回错误，服务会优雅地处理错误，最多重试三次查询。如果不同提供商的结果持续不一致，服务会默认选择信任Cloudflare的DNS结果。
 
-服务器支持以下 DNS 记录类型：
+## 架构
 
-- **A**：将域名映射到 IPv4 地址。
-- **AAAA**：将域名映射到 IPv6 地址。
-- **CNAME**：将域名映射到另一个域名（规范名称）。
-- **DNAME**：将域名映射到域名空间子树的另一个域名。
-- **MX**：指定域名的邮件交换服务器。
-- **TXT**：保存任意文本数据，通常用于电子邮件验证，如 SPF、DKIM 或 DMARC 记录。
+该DNS解析服务的设计旨在提升性能、可靠性和可扩展性。以下是核心组件的详细介绍：
 
-### DNS 查询构建
+### LRU缓存
+LRU缓存使用双向链表和哈希表结合的设计，实现了插入和查找操作的O(1)时间复杂度。当缓存达到最大容量时，最近最少使用的条目将被移除，为新的条目腾出空间。
 
-DNS 查询采用二进制格式构建。服务器创建包含必要头部信息和问题部分的 DNS 查询数据包，问题部分包括查询的域名和请求的记录类型。
+### 速率限制器
+速率限制器通过滑动时间窗口（默认60秒）跟踪每个IP地址的请求情况。它确保客户端遵守定义的速率限制，防止滥用行为。
 
-查询数据包然后被编码为 Base64URL 格式，通过 HTTPS 请求发送到一个 DoH 服务器（在本例中为 Cloudflare 的 DoH 服务器）。
+### DNS解析和共识机制
+服务向三个DNS提供商并发发送DNS查询，最先返回的结果会立即返回给用户以提高速度。然后，服务在1秒内评估其余响应的结果一致性。如果结果不同，服务会再次查询，并根据共识（即至少两家提供商一致）选择最终结果。如果结果持续不一致，服务会选择信任Cloudflare的结果。
 
-### DNS 响应解析
+### 日志记录与统计
+日志和统计信息存储在内存中，并可通过专用端点进行访问。这允许实时监控服务的性能和使用情况。
 
-服务器接收一个二进制的 DNS 响应，并对其进行解析。响应包含几个部分：问题部分、答案部分、权威部分和附加部分。
-
-- **答案部分**：包含回答问题的资源记录。
-- **权威部分**：包含指向权威 DNS 服务器的资源记录。
-- **附加部分**：包含与查询相关的附加信息资源记录。
-
-服务器处理这些部分，提取和解释数据，如有必要，使用权威和附加部分的信息进行进一步查询。
-
-## 安装
+## 快速开始
 
 ### 前提条件
 
-在部署此 DNS 服务器之前，请确保您具备以下条件：
+在设置DNS解析服务之前，您需要：
+- 一个Cloudflare Workers账户
+- JavaScript和HTTP请求的基础知识
 
-1. **Cloudflare 账户**：您需要一个 Cloudflare 账户来部署 Workers。
-2. **Wrangler CLI**：Cloudflare 的命令行工具，用于管理 Workers。您可以使用 npm 安装它：
-    ```sh
-    npm install -g wrangler
-    ```
+### 设置步骤
 
-### 设置
+1. **克隆仓库**
 
-1. **克隆仓库**：
-    ```sh
-    git clone https://github.com/your-username/cloudflare-workers-dns-server.git
-    cd cloudflare-workers-dns-server
-    ```
+   使用Git将仓库克隆到本地计算机：
+   ```bash
+   git clone https://github.com/yourusername/dns-resolver-worker.git
+   cd dns-resolver-worker
+   ```
 
-2. **配置 Wrangler**：
-    运行以下命令，用您的 Cloudflare 账户配置 Wrangler：
-    ```sh
-    wrangler login
-    ```
+2. **部署到Cloudflare Workers**
 
-3. **部署 Worker**：
-    使用以下命令部署 DNS 服务器：
-    ```sh
-    wrangler publish
-    ```
+   您需要将服务部署到Cloudflare Workers。这需要设置Cloudflare账户并配置Workers环境。
 
-    部署后，Wrangler 将提供一个 URL，您的 DNS 服务器将可通过该 URL 访问。
+   ```bash
+   wrangler login
+   wrangler init
+   wrangler publish
+   ```
 
-## 使用
+3. **配置环境变量**
 
-### 基本使用
+   该DNS解析服务不需要KV等持久化存储，但您可以通过环境变量进行配置。在`wrangler.toml`文件中编辑这些变量：
 
-一旦部署，您可以通过向提供的 URL 发出 HTTP 请求来使用 DNS 服务器。服务器期望接收以下查询参数：
+   ```toml
+   name = "dns-resolver-worker"
+   type = "javascript"
 
-- **hostname**：要解析的域名。
-- **type**：要查询的 DNS 记录类型（例如 A、AAAA、CNAME）。如果省略，则默认为 `A`。
+   account_id = "your-account-id"
+   workers_dev = true
+   compatibility_date = "2023-08-01"
+   ```
 
-#### 示例：
+   您可以在此处添加其他配置，例如自定义TTL、调整缓存大小或设置速率限制。
 
-要查询 `example.com` 的 A 记录，您可以发出如下请求：
+4. **定制IP过滤和速率限制**
 
+   如需定制IP过滤或速率限制，您可以直接编辑`index.js`文件中的`isAllowedIP`和`RateLimiter`类。根据您的安全需求调整IP范围或请求限制。
+
+### 使用方法
+
+#### 查询DNS记录
+
+您可以通过向您的Cloudflare Worker发送HTTP GET请求来查询DNS记录，并使用以下参数：
+
+- `name`：要查询的域名。
+- `type`：DNS记录类型（A, AAAA, CNAME, MX等）。
+- `format`：响应格式（json或text）。默认是`json`。
+- `ttl`：（可选）缓存条目的生存时间，以秒为单位。
+
+**示例请求：**
+```bash
+curl "https://your-worker-url.workers.dev?name=example.com&type=A&format=json"
 ```
-https://your-worker.your-domain.com/?hostname=example.com&type=A
+
+**示例响应：**
+```json
+{
+  "Status": 0,
+  "TC": false,
+  "RD": true,
+  "RA": true,
+  "AD": false,
+  "CD": false,
+  "Question": [
+    {
+      "name": "example.com.",
+      "type": 1
+    }
+  ],
+  "Answer": [
+    {
+      "name": "example.com.",
+      "type": 1,
+      "TTL": 3599,
+      "data": "93.184.216.34"
+    }
+  ]
+}
 ```
 
-服务器将返回包含 DNS 记录的 JSON 响应。
+#### 访问统计信息
 
-### 查询不同的记录类型
+要查看实时DNS查询统计信息，请访问以下端点：
 
-您可以通过更改 `type` 参数查询不同的记录类型：
+```bash
+curl "https://your-worker-url.workers.dev/stats"
+```
 
-- **AAAA**：获取 `example.com` 的 IPv6 地址：
-    ```
-    https://your-worker.your-domain.com/?hostname=example.com&type=AAAA
-    ```
+这将返回一个JSON对象，包含每个DNS提供商的统计信息，包括查询次数、成功率、失败次数和平均响应时间。
 
-- **CNAME**：获取 `www.example.com` 的规范名称：
-    ```
-    https://your-worker.your-domain.com/?hostname=www.example.com&type=CNAME
-    ```
+### 修改服务
 
-- **MX**：获取 `example.com` 的邮件交换服务器：
-    ```
-    https://your-worker.your-domain.com/?hostname=example.com&type=MX
-    ```
+该服务设计为易于扩展。以下是一些常见的修改示例：
 
-- **TXT**：检索 `example.com` 的 TXT 记录：
-    ```
-    https://your-worker.your-domain.com/?hostname=example.com&type=TXT
-    ```
+#### 1. 调整缓存大小
 
-## 自定义
+如果您需要将缓存大小调整为默认1000条目以外的其他值，请修改`index.js`中的`LRUCache`初始化：
 
-此 DNS 服务器设计为易于定制和扩展。
+```javascript
+const dnsCache = new LRUCache(2000); // 将缓存大小增加到2000条目
+```
 
-### 增加对更多 DNS 记录类型的支持
+#### 2. 自定义速率限制
 
-如果您需要增加对更多 DNS 记录类型的支持，可以通过扩展 `dnsTypeToCode` 函数并更新 `parseRecordData` 函数来处理新的记录类型。
+要更改速率限制设置，请修改`RateLimiter`类的初始化：
 
-#### 示例：
+```javascript
+const rateLimiter = new RateLimiter(100, 60000); // 每个IP每分钟允许100个请求
+```
 
-要增加对 `SRV` 记录类型的支持：
+#### 3. 添加对更多DNS提供商的支持
 
-1. 在 `dnsTypeToCode` 中添加以下代码：
-    ```javascript
-    case 'SRV': return 33;
-    ```
+您可以通过扩展`fetchDNSFromService`函数，添加对其他DNS提供商的支持。只需添加DNS提供商的查询URL，并更新`Promise.allSettled`调用以包含新的提供商。
 
-2. 更新 `parseRecordData` 以处理 `SRV` 记录：
-    ```javascript
-    case 33: // SRV
-        const priority = view.getUint16(offset);
-        const weight = view.getUint16(offset + 2);
-        const port = view.getUint16(offset + 4);
-        const target = parseName(view, offset + 6);
-        return { priority, weight, port, target };
-    ```
+#### 4. 使用KV持久化存储
 
-### 修改递归解析逻辑
+如果您需要缓存或日志的持久化存储，可以修改服务以使用Cloudflare KV。这涉及将缓存和日志机制改为从KV存储中存取数据，而不仅仅依赖于内存中的存储。
 
-递归解析逻辑集中在 `resolveDNS` 函数中。如果您需要修改服务器如何处理递归查询，例如添加自定义缓存、在根服务器之间进行负载均衡或不同的查询回退策略，您可以修改此函数。
+### 性能考量
 
-#### 示例：
+#### 延迟
 
-要随机化选择根服务器以更好地分配负载：
+DNS解析服务通过立即返回第一个可用结果优化了响应延迟。进一步的优化包括使用LRU缓存避免冗余查询，减少对DNS提供商的负载。
 
-1. 更新初始根服务器的选择：
-    ```javascript
-    let server = rootServers[Math.floor(Math.random() * rootServers.length)];
-    ```
+#### 吞吐量
 
-2. 调整任何依赖于根服务器选择的相关逻辑。
+鉴于速率限制和缓存机制，服务能够处理大量请求，同时防止滥用，并确保可靠的性能。内存中的存储确保了快速访问，尽管它受制于Workers的执行环境限制。
 
-## 限制
+#### 故障容错
 
-虽然此 DNS 服务器功能强大且灵活，但它也有一些限制：
+服务的设计考虑了故障容错。如果某个DNS提供商未能响应，服务会优雅地处理错误，重试查询，并最终返回最可靠的结果。通过使用多个DNS提供商和共识机制，服务确保了尽可能高的准确性和可靠性。
 
-- **延迟**：由于服务器实时执行递归查询，对于具有深度 DNS 层次结构的域名，可能会引入一些延迟。
-- **速率限制**：Cloudflare Workers 受速率限制的约束，因此处理大量 DNS 查询可能需要额外的考虑或优化。
-- **可扩展性**：虽然 Cloudflare Workers 是全球分布的，但此 DNS 服务器的架构可能需要修改，以有效处理大规模、高性能的场景。
+### 安全性
 
-## 贡献
+#### IP过滤
 
-欢迎为本项目做出贡献！无论您有新功能的想法、优化建议或错误修复，请随时提交 pull request 或在 GitHub 上打开一个 issue。
+服务包括IP过滤功能，以基于预定义的IP范围限制访问。这可以根据需要进行修改，以包括或排除特定的IP。IP过滤对于防止未经授权的访问至关
 
-贡献时，请确保您的代码遵循现有的风格和结构。包括详细的提交消息，如果适用，更新文档以反映任何更改。
+重要，确保只有受信任的客户端能够使用DNS解析服务。
 
-## 许可证
+#### 速率限制
 
-本项目使用 MIT 许可证。您可以根据许可证的条款
+速率限制是另一个关键的安全功能，通过限制单个IP地址在特定时间段内可以发出的请求数量来防止滥用。这有助于保护服务免受DDoS攻击，并确保所有客户端的公平使用。
 
-自由使用、修改和分发此软件。有关更多详细信息，请参阅 [LICENSE](LICENSE) 文件。
+#### HTTPS强制
+
+由于服务部署在Cloudflare Workers上，所有请求默认通过HTTPS处理，确保DNS查询和响应在传输过程中加密。这对于保持DNS查询的完整性和机密性至关重要。
+
+### 故障排除
+
+如果您在使用DNS解析服务时遇到问题，请考虑以下步骤：
+
+#### 检查日志
+
+日志可以提供有关服务操作的宝贵见解，包括可能发生的任何错误。这些日志会打印到控制台，您可以通过Cloudflare Workers仪表板访问它们。
+
+#### 检查速率限制
+
+如果请求被阻止，请确保速率限制设置正确，并且您的IP地址未超过允许的每分钟请求数量。
+
+#### 调试缓存问题
+
+如果服务返回陈旧或意外的结果，请考虑清除缓存或调整TTL设置。可以通过重新部署服务或修改缓存大小来临时使旧条目失效。
+
+#### 监控DNS提供商状态
+
+如果某个DNS提供商持续出现故障，可能是由于提供商本身的问题。考虑暂时禁用有问题的提供商，或调整共识机制以偏向更可靠的提供商。
+
+### 未来增强
+
+虽然服务已经完全功能化，但未来可以实现一些增强功能：
+
+#### 1. 支持更多DNS记录类型
+扩展服务以支持更多DNS记录类型，例如SRV, TXT和DNSSEC相关的记录，将增加其灵活性。
+
+#### 2. 与其他Cloudflare服务集成
+与其他Cloudflare服务（如Durable Objects或Web Analytics）的集成可以提供额外的洞察力和能力，例如详细的查询日志或持久化存储。
+
+#### 3. 全球负载均衡
+实现跨多个Cloudflare数据中心的全球负载均衡，可以通过将DNS查询路由到最近或最快的数据中心进一步提高性能和可靠性。
+
+### 贡献
+
+欢迎对DNS解析服务的贡献！无论是报告错误、提出新功能建议，还是提交拉取请求，您的参与都非常宝贵。请按照以下指南进行贡献：
+
+1. **Fork仓库**
+
+   在GitHub上Fork该仓库，并将其克隆到您的本地计算机。
+
+   ```bash
+   git clone https://github.com/yourusername/dns-resolver-worker.git
+   ```
+
+2. **创建功能分支**
+
+   为您的功能或Bug修复创建一个新的分支。
+
+   ```bash
+   git checkout -b feature/new-feature
+   ```
+
+3. **提交更改**
+
+   进行更改，然后用清晰简洁的消息提交它们。
+
+   ```bash
+   git commit -m "Add support for SRV records"
+   ```
+
+4. **提交拉取请求**
+
+   将更改推送到GitHub并提交拉取请求。包括您所做更改的描述以及它们为什么是必要的。
+
+### 许可
+
+本项目是基于MIT许可证的。详细信息请参阅[LICENSE](LICENSE)文件。
+
+### 致谢
+
+感谢Cloudflare Workers团队提供了一个强大的平台，使创建无服务器应用变得如此容易。
 
 ---
 
-此 README 提供了理解、部署和自定义 Cloudflare Workers DNS 服务器的深入指南。无论您是想按原样使用它，还是扩展其功能以处理更高级的 DNS 任务，本文档都应作为综合资源。
+这个README文件为DNS解析服务提供了全面的概述和详细的说明。文件涵盖了服务的所有关键方面，并应能指导用户完成整个过程，从初始设置到高级定制和故障排除。
