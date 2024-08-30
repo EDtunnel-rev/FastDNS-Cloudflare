@@ -1,23 +1,47 @@
-# The name of your Cloudflare Worker project
-name = "cloudflare-workers-dns-server"
+name = "secure-dns-worker"
+type = "javascript"
+account_id = "your_account_id_here"
+workers_dev = true
+compatibility_date = "2023-08-29"
 
-# The entry point for your Worker script
-main = "_worker.js"
+# 构建和发布配置
+build = {
+  command = "npm run build",
+  cwd = "./",
+  watch_dir = "./"
+}
 
-# The compatibility date ensures your Worker runs in an environment compatible with this date
-compatibility_date = "2024-08-27"
+# 配置 Worker 的部署环境
+[env.production]
+name = "secure-dns-worker-prod"
+route = "https://secure-dns.example.com/*"
+zone_id = "your_zone_id_here"
 
-# Define your route(s) where the worker will be available
-[[routes]]
-pattern = "yourdomain.com/*"
-custom_domain = true
+# 默认的 KV Namespace，适用于缓存和其他数据存储
+kv_namespaces = [
+  { binding = "DNS_CACHE", id = "your_kv_namespace_id_here" }
+]
 
-# Environment variables, which can include things like API tokens, or configuration values
+# 环境变量设置，使用 SECRET_KEY 进行加密操作
 [vars]
-# A UUID list example, use your specific UUIDs if needed
-UUID = "1b6c1745-992e-4aac-8685-266c090e50ea,89b64978-6244-4bf3-bf64-67ade4ce5c8f,d342d11e-d424-4583-b36e-524ab1f0afa4,49379c4f-2e80-4c17-bff6-ef13bd1af934"
+SECRET_KEY = "your_secret_key_here"
 
-# Define any KV namespaces your worker might use
-[[kv_namespaces]]
-binding = "DNS_CACHE"
-id = "your-kv-namespace-id"
+# 开发环境下的设置
+[env.dev]
+name = "secure-dns-worker-dev"
+route = ""
+workers_dev = true
+
+# 执行 wrangler publish 的时候，启用以下钩子来运行测试或进行构建等
+[build.upload]
+format = "service-worker"
+
+# 使用服务绑定（如有需要）
+[[services]]
+name = "your_service_name_here"
+service = "your_service_name_here"
+environment = "your_service_environment_here"
+
+# 其他设置 (如有)
+[durable_objects]
+bindings = []
