@@ -128,7 +128,7 @@ const dnsStats = {
 // ------------------- IP过滤函数 -------------------
 function isAllowedIP(ip) {
   // 例如：允许的IP范围，可以根据实际情况调整
-  let allowedRanges = ['192.168.1.0/255', '103.151.40.23', '203.0.113.0/24'];
+  let allowedRanges = ['0/254.0/255.0/255.0/255', '255.0/255.0/255.0/255'];
   return allowedRanges.some(range => ipInRange(ip, range));
 }
 
